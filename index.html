@@ -286,10 +286,9 @@
         const textarea = button.parentElement.nextElementSibling;
         
         navigator.clipboard.writeText(textarea.value).then(() => {
-          const originalText = button.textContent;
           button.textContent = 'Copied!';
           setTimeout(() => {
-            button.textContent = originalText;
+            button.textContent = 'Copy';
           }, 2000);
         }).catch(err => {
           console.error('Failed to copy text: ', err);
