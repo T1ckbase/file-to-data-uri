@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File to Data URI / Base64 Converter</title>
+  <meta name="description" content="A free, fast, client-side tool to convert any file (like images) into a Data URI or Base64 string directly in your browser. Drag and drop to get started.">
+  <meta name='color-scheme' content='light dark' />
+  <style>
+    :root {
+      --border-color: #ccc;
+      --placeholder-bg: #f9f9f9;
+      --drag-over-outline: #007bff;
+      --drag-over-bg: rgba(0, 123, 255, 0.05);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --border-color: #555;
+        --placeholder-bg: #222;
+        --drag-over-outline: #58a6ff;
+        --drag-over-bg: rgba(88, 166, 255, 0.1);
+      }
+      body {
+        color: #eee;
+      }
+    }
+
+    html {
+      height: 100%;
+    }
+
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+      line-height: 1.6;
+      font-size: 1em;
+      display: flex;
+      flex-direction: column;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 1rem auto;
+      padding: 0 1rem;
+      width: 100%;
+      box-sizing: border-box;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    /* --- Input Elements --- */
+    .button {
+      display: inline-block;
+      padding: 0.6em 1.2em;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      border-radius: 0.25rem;
+      font-weight: bold;
+    }
+    .button:hover {
+      opacity: 0.8;
+    }
+
+    /* --- Drag and Drop Placeholder --- */
+    #placeholder {
+      border: 2px dashed var(--border-color);
+      border-radius: 0.25rem;
+      background-color: var(--placeholder-bg);
+      transition: all 0.2s ease-in-out;
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    body.drag-over::before {
+      content: 'Drop Files Anywhere';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--drag-over-bg);
+      border: 4px dashed var(--drag-over-outline);
+      box-sizing: border-box;
+      font-size: 2em;
+      font-weight: bold;
+      color: var(--drag-over-outline);
+      pointer-events: none;
+    }
+
+    /* --- Result Block Styling --- */
+    .result-block {
+      margin-top: 1.5rem;
+    }
+
+    .info-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .info-line span {
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      padding: 0.3em 0.8em;
+      border: 1px solid var(--border-color);
+      border-radius: 0.25rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    
+    /* ADDED: Style for disabled button */
+    .copy-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    textarea {
+      width: 100%;
+      height: 3em;
+      border-radius: 0.25rem;
+      padding: 0.5em;
+      font-family: monospace;
+      word-wrap: normal;
+      white-space: pre;
+      overflow-x: scroll;
+      overflow-y: hidden;
+      resize: none;
+      scrollbar-width: thin;
+      box-sizing: border-box;
+    }
+
+    hr {
+      border: 0;
+      height: 1px;
+      background: var(--border-color);
+      margin-top: 1.5rem;
+    }
+    
+    .result-block:first-of-type {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <main>
+    <header>
+      <h1>File to Data URI Converter</h1>
+      <p>A fast, client-side tool to convert files into their Data URI / Base64 representation.</p>
+      <p>
+        <input type="file" id="fileInput" multiple style="display: none;">
+        <label for="fileInput" class="button">Choose Files</label>
+      </p>
+    </header>
+
+    <div id="results"></div>
+    <div id="placeholder">Drop files anywhere to begin</div>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const fileInput = document.getElementById('fileInput');
+      const resultsContainer = document.getElementById('results');
+      const placeholder = document.getElementById('placeholder');
+      const body = document.body;
+
+      const handleFiles = (files) => {
+        if (files.length === 0) return;
+        
+        placeholder.style.display = 'none';
+
+        [...files].forEach(processFile);
+      };
+      
+      const processFile = (file) => {
+        // 1. Create the UI stub immediately
+        const resultBlock = document.createElement('div');
+        resultBlock.className = 'result-block';
+
+        const infoLine = document.createElement('div');
+        infoLine.className = 'info-line';
+
+        const fileInfo = document.createElement('span');
+        const mimeType = file.type || 'application/octet-stream';
+        fileInfo.innerHTML = `<b>${file.name}</b> [${mimeType}]`;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Copy';
+        copyBtn.disabled = true; // <-- CHANGE: Disable button initially
+
+        infoLine.appendChild(fileInfo);
+        infoLine.appendChild(copyBtn);
+
+        const textarea = document.createElement('textarea');
+        textarea.readOnly = true;
+        textarea.rows = '1';
+        textarea.value = 'Loading...';
+
+        const separator = document.createElement('hr');
+
+        resultBlock.appendChild(infoLine);
+        resultBlock.appendChild(textarea);
+        resultBlock.appendChild(separator);
+        resultsContainer.appendChild(resultBlock);
+
+        // 2. Read the file asynchronously
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+          const dataURI = event.target.result;
+          const oldSize = file.size;
+          const newSize = dataURI.length;
+          const percentageIncrease = (((newSize - oldSize) / oldSize) * 100).toFixed(2);
+
+          // 3. Update UI on success
+          fileInfo.innerHTML = `<b>${file.name}</b> [${mimeType}] (${oldSize} bytes → ${newSize} bytes, +${percentageIncrease}%)`;
+          textarea.value = dataURI;
+          copyBtn.disabled = false; // <-- CHANGE: Enable button on success
+        };
+
+        reader.onerror = () => {
+          // 4. Update UI on failure (button remains disabled)
+          textarea.value = `Error: Could not read the file.`;
+          textarea.style.color = '#ff0000';
+        };
+
+        reader.readAsDataURL(file);
+      };
+
+      // --- Event Listeners ---
+
+      // File picker
+      fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+      });
+
+      // Drag and drop
+      body.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        body.classList.add('drag-over');
+      });
+
+      body.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        body.classList.remove('drag-over');
+      });
+
+      body.addEventListener('drop', (e) => {
+        e.preventDefault();
+        body.classList.remove('drag-over');
+        handleFiles(e.dataTransfer.files);
+      });
+
+      // Copy button (using event delegation)
+      resultsContainer.addEventListener('click', (e) => {
+        if (!e.target.classList.contains('copy-btn')) return;
+
+        const button = e.target;
+        const textarea = button.parentElement.nextElementSibling;
+        
+        navigator.clipboard.writeText(textarea.value).then(() => {
+          const originalText = button.textContent;
+          button.textContent = 'Copied!';
+          setTimeout(() => {
+            button.textContent = originalText;
+          }, 2000);
+        }).catch(err => {
+          console.error('Failed to copy text: ', err);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
